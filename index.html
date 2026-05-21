@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Block Blast Simplifié</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f4f4f9;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background: #004080;
+      color: white;
+      padding: 20px;
+    }
+    #gameArea {
+      display: grid;
+      grid-template-columns: repeat(10, 40px);
+      grid-template-rows: repeat(10, 40px);
+      gap: 2px;
+      margin: 20px auto;
+      width: 420px;
+      background: #ddd;
+      border: 2px solid #004080;
+    }
+    .cell {
+      width: 40px;
+      height: 40px;
+      background: white;
+      border: 1px solid #ccc;
+    }
+    .filled {
+      background: #ff4444;
+    }
+    #score, #bestScore, #message {
+      font-size: 20px;
+      margin-top: 10px;
+      color: #004080;
+    }
+    #blocks {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+    .block {
+      display: inline-block;
+      padding: 5px;
+      background: #eee;
+      border: 2px solid #004080;
+      cursor: grab;
+    }
+    .block div {
+      width: 30px;
+      height: 30px;
+      margin: 2px;
+      display: inline-block;
+    }
+    .color1 { background: #ff4444; }
+    .color2 { background: #44ff44; }
+    .color3 { background: #4444ff; }
+    .color4 { background: #ffaa00; }
+    button {
+      padding: 10px 20px;
+      margin-top: 20px;
+      background: #004080;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0066cc;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Jeu Block Blast</h1>
+    <p>Glisse les blocs dans la grille pour marquer des points !</p>
+  </header>
+
+  <div id="gameArea"></div>
+
+  <div id="score">Score : 0</div>
+  <div id="bestScore">Meilleur score : 0</div>
+  <div id="message"></div>
+  <button onclick="startGame()">Rejouer</button>
+
+  <div id="blocks"></div>
+
+  <script>
+    const gameArea = document.getElementById("gameArea");
+    const scoreDisplay = document.getElementById("score");
+    const bestScoreDisplay = document.getElementById("bestScore");
+    const messageDisplay = document.getElementById("message");
+    const blocksContainer = document.getElementById("blocks");
+
+    let grid = [];
+    let score = 0;
+    let bestScore = 0;
+
+    function createGrid() {
+      gameArea.innerHTML = "";
+      grid = [];
+      for (let i = 0; i < 100; i++) {
+        const cell = document.createElement("div");
+        cell.classList.add("cell");
+        cell.dataset.index = i;
+        gameArea.appendChild(cell);
+        grid.push(cell);
+      }
+    }
+
+    function randomBlock() {
+      const shapes = [
+        [[1,1,1]], // ligne horizontale
+        [[1],[1],[1]], // ligne verticale
+        [[1,1],[1,1]], // carré
+        [[1,1,0],[0,1,1]] // forme L
+      ];
+      const colors = ["color1","color2","color3","color4"];
+      return {shape: shapes[Math.floor(Math.random()*shapes.length)], color: colors[Math.floor(Math.random()*colors.length)]};
+    }
+
+    function renderBlocks() {
+      blocksContainer.innerHTML = "";
+      for (let i = 0; i < 3; i++) {
+        const {shape, color} = randomBlock();
+        const blockDiv = document.createElement("div");
+        blockDiv.classList.add("block");
+        blockDiv.draggable = true;
+        blockDiv.dataset.shape = JSON.stringify(shape);
+        blockDiv.dataset.color = color;
+
+        shape.forEach(row => {
+          const rowDiv = document.createElement("div");
+          row.forEach(cell => {
+            const c = document.createElement("div");
+            if (cell === 1) c.classList.add(color);
+            else c.style.background = "transparent";
+            rowDiv.appendChild(c);
+          });
+          blockDiv.appendChild(rowDiv);
+        });
+
+        blockDiv.addEventListener("dragstart", e => {
+          e.dataTransfer.setData("shape", blockDiv.dataset.shape);
+          e.dataTransfer.setData("color", blockDiv.dataset.color);
+        });
+
+        blocksContainer.appendChild(blockDiv);
+      }
+    }
+
+    gameArea.addEventListener("dragover", e => e.preventDefault());
+
+    gameArea.addEventListener("drop", e => {
+      const shape = JSON.parse(e.dataTransfer.getData("shape"));
+      const color = e.dataTransfer.getData("color");
+      const rect = gameArea.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / 42);
+      const y = Math.floor((e.clientY - rect.top) / 42);
+
+      placeBlock(shape, color, x, y);
+    });
+
+    function placeBlock(shape, color, x, y) {
+      let canPlace = true;
+      for (let r = 0; r < shape.length; r++) {
+        for (let c = 0; c < shape[r].length; c++) {
+          if (shape[r][c] === 1) {
+            const index = (y+r)*10 + (x+c);
+            if (index >= 100 || x+c >= 10 || y+r >= 10 || grid[index].classList.contains("filled")) {
+              canPlace = false;
+            }
+          }
+        }
+      }
+      if (canPlace) {
+        for (let r = 0; r < shape.length; r++) {
+          for (let c = 0; c < shape[r].length; c++) {
+            if (shape[r][c] === 1) {
+              const index = (y+r)*10 + (x+c);
+              grid[index].classList.add("filled", color);
+            }
+          }
+        }
+        score += 10;
+        scoreDisplay.textContent = "Score : " + score;
+        checkLines();
+        renderBlocks();
+      } else {
+        messageDisplay.textContent = "Impossible de placer ce bloc ici.";
+      }
+    }
+
+    function checkLines() {
+      for (let r = 0; r < 10; r++) {
+        let full = true;
+        for (let c = 0; c < 10; c++) {
+          if (!grid[r*10+c].classList.contains("filled")) full = false;
+        }
+        if (full) {
+          for (let c = 0; c < 10; c++) grid[r*10+c].className = "cell";
+          score += 50;
+        }
+      }
+      for (let c = 0; c < 10; c++) {
+        let full = true;
+        for (let r = 0; r < 10; r++) {
+          if (!grid[r*10+c].classList.contains("filled")) full = false;
+        }
+        if (full) {
+          for (let r = 0; r < 10; r++) grid[r*10+c].className = "cell";
+          score += 50;
+        }
+      }
+      scoreDisplay.textContent = "Score : " + score;
+      if (score > bestScore) {
+        bestScore = score;
+        bestScoreDisplay.textContent = "Meilleur score : " + bestScore;
+      }
+    }
+
+    function startGame() {
+      score = 0;
+      scoreDisplay.textContent = "Score : " + score;
+      messageDisplay.textContent = "";
+      createGrid();
+      renderBlocks();
+    }
+
+    window.onload = startGame;
+  </script>
+</body>
+</html>
